@@ -8,6 +8,9 @@
 #define SW_OET 4
 #define SW_KILL 9
 
+#define SW_SPD_LOW A1
+#define SW_SPD_HIGH A0
+
 #define OUT_CW 12
 #define OUT_PULSE 11
 
@@ -20,6 +23,8 @@ struct SwitchState {
   boolean zero;
   boolean oet;
   boolean kill;
+  boolean speed_low;
+  boolean speed_high;
 };
 SwitchState switches = (SwitchState) { false, false, false, false, false, false, false };
 
@@ -79,13 +84,15 @@ void loop() {
 }
 
 void refreshInput() {
-  switches.turnleft     = digitalRead(5) == HIGH;
-  switches.turnright    = digitalRead(6) == HIGH;
+  switches.turnleft     = digitalRead(SW_TURN_LEFT) == HIGH;
+  switches.turnright    = digitalRead(SW_TURN_RIGHT) == HIGH;
   switches.thdbleft     = digitalRead(SW_THDB_LEFT) == HIGH;
   switches.thdbright    = digitalRead(SW_THDB_RIGHT) == HIGH;
   switches.zero         = digitalRead(SW_ZERO) == HIGH;
   switches.oet          = digitalRead(SW_OET) == HIGH;
   switches.kill         = digitalRead(SW_KILL) == HIGH;
+  switches.speed_low    = digitalRead(SW_SPD_LOW) == HIGH;
+  switches.speed_high   = digitalRead(SW_SPD_HIGH) == HIGH;
   if (turnstate.turnlong) {
     if (switches.kill) {
       turnstate.turnlong = false;
@@ -117,6 +124,13 @@ void refreshInput() {
       turnstate.thdbright = turnstate.angle;
     }
     setDirection(turnstate.right);
+  }
+  if (switches.speed_low) {
+    timer[0].interval = 25000;
+  } else if (switches.speed_high) {
+    timer[0].interval = 3000;
+  } else {
+    timer[0].interval = 8000;
   }
 }
 
