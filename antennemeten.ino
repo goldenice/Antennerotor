@@ -37,6 +37,7 @@ struct Timer {
 Timer timer[10];
 
 int pulsePin = LOW;
+int outputCtr = 0;
 
 struct TurnState {
   boolean turnlong;
@@ -49,6 +50,18 @@ struct TurnState {
   float thdbright;
 };
 TurnState turnstate = (TurnState) { false, false, false, 0.0, 0.0, 0.0, 0.0, 0.0 };
+
+#include <Wire.h>
+#include <FastIO.h>
+#include <I2CIO.h>
+#include <LCD.h>
+#include <LiquidCrystal.h>
+#include <LiquidCrystal_I2C.h>
+#include <LiquidCrystal_SR.h>
+#include <LiquidCrystal_SR2W.h>
+#include <LiquidCrystal_SR3W.h>
+
+LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 
 void setup() {
   pinMode(SW_TURN_LEFT, INPUT);
@@ -64,9 +77,19 @@ void setup() {
   
   timer[0] = { micros(), 8000, true };
   timer[1] = { millis(), 100, false };
-  timer[2] = { millis(), 200, false };
+  timer[2] = { millis(), 160, false };
   
   Serial.begin(38400);
+  
+  lcd.begin(20, 4);
+  lcd.setCursor(0, 0);
+  lcd.print(" DEG: "); 
+  lcd.setCursor(0, 1);  
+  lcd.print(" OFF: ");
+  lcd.setCursor(0, 2);
+  lcd.print("-3dB: ");
+  lcd.setCursor(0, 3);
+  lcd.print(" 3dB: ");
 }
 
 void loop() {
@@ -189,12 +212,20 @@ boolean checkTimer(int index) {
 }
 
 void output() {
-  Serial.print("A: ");
-  Serial.print( turnstate.angle - turnstate.offset );
-  Serial.print(" T: ");
-  Serial.print( turnstate.target - turnstate.offset );
-  Serial.print(" -3dB: ");
-  Serial.print( turnstate.thdbleft );
-  Serial.print(" 3dB: ");
-  Serial.println( turnstate.thdbright );
+  lcd.setCursor(6, outputCtr);
+  if (outputCtr == 0) {
+    lcd.print(round(turnstate.angle - turnstate.offset));
+    lcd.print("   ");
+  } else if (outputCtr == 1) {
+    lcd.print(round(turnstate.offset));
+    lcd.print("    ");
+  } else if (outputCtr == 2) {
+    lcd.print(round(turnstate.thdbleft));
+    lcd.print("    ");
+  } else if (outputCtr == 3) {
+    lcd.print(round(turnstate.thdbright));
+    lcd.print("    ");
+  }
+  outputCtr++;
+  if (outputCtr >= 4) outputCtr = 0;
 }
