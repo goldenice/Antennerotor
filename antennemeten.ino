@@ -215,7 +215,7 @@ void output() {
   lcd.setCursor(6, outputCtr);
   if (outputCtr == 0) {
     lcd.print(round(turnstate.angle - turnstate.offset));
-    lcd.print("   ");
+    lcd.print("    ");
   } else if (outputCtr == 1) {
     lcd.print(round(turnstate.offset));
     lcd.print("    ");
