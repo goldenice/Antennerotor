@@ -133,11 +133,11 @@ void refreshInput() {
       if (turnstate.angle > 0) {
         turnstate.turnlong = true;
         turnstate.left = true;
-        turnstate.target = turnstate.angle - 180;
+        turnstate.target = turnstate.offset - 180;
       } else {
         turnstate.turnlong = true;
         turnstate.right = true;
-        turnstate.target = turnstate.angle + 180;
+        turnstate.target = turnstate.offset + 180;
       }
     }
     if (switches.thdbleft) {
@@ -220,10 +220,10 @@ void output() {
     lcd.print(round(turnstate.offset));
     lcd.print("    ");
   } else if (outputCtr == 2) {
-    lcd.print(round(turnstate.thdbleft));
+    lcd.print(round(turnstate.thdbleft - turnstate.offset));
     lcd.print("    ");
   } else if (outputCtr == 3) {
-    lcd.print(round(turnstate.thdbright));
+    lcd.print(round(turnstate.thdbright - turnstate.offset));
     lcd.print("    ");
   }
   outputCtr++;
