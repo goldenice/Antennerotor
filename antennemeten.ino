@@ -127,17 +127,27 @@ void refreshInput() {
     turnstate.right = switches.turnright;
     if (switches.zero) {
       turnstate.offset = turnstate.angle;
+      turnstate.thdbleft = turnstate.offset;
+      turnstate.thdbright = turnstate.offset;
     }
     if (switches.oet) {
       turnstate.turnlong = true;
-      if (turnstate.angle > 0) {
-        turnstate.turnlong = true;
-        turnstate.left = true;
-        turnstate.target = turnstate.offset - 180;
+      if (aboutEquals((turnstate.angle - turnstate.offset), -180, 10) || aboutEquals((turnstate.angle - turnstate.offset), 180, 10)) {
+        if (turnstate.angle > 0) {
+          turnstate.left = true;
+          turnstate.target = turnstate.offset;
+        } else {
+          turnstate.right = true;
+          turnstate.target = turnstate.offset;
+        }
       } else {
-        turnstate.turnlong = true;
-        turnstate.right = true;
-        turnstate.target = turnstate.offset + 180;
+        if (turnstate.angle > 0) {
+          turnstate.left = true;
+          turnstate.target = turnstate.offset - 180;
+        } else {
+          turnstate.right = true;
+          turnstate.target = turnstate.offset + 180;
+        }
       }
     }
     if (switches.thdbleft) {
@@ -167,11 +177,9 @@ void pulse() {
       turnstate.angle -= 0.1;
     }
     if (turnstate.turnlong) {
-      if (turnstate.left && turnstate.angle < turnstate.target) {
+      if (aboutEquals(turnstate.angle, turnstate.target, 0.1)) {
         turnstate.turnlong = false;
         turnstate.left = false;
-      } else if (turnstate.right && turnstate.angle > turnstate.target) {
-        turnstate.turnlong = false;
         turnstate.right = false;
       }
     }
@@ -228,4 +236,8 @@ void output() {
   }
   outputCtr++;
   if (outputCtr >= 4) outputCtr = 0;
+}
+
+boolean aboutEquals(double num1, double num2, double delta) {
+  return (num1 < (num2 + delta) && num1 > (num2 - delta));
 }
