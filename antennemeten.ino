@@ -14,6 +14,8 @@
 #define OUT_CW 12
 #define OUT_PULSE 11
 
+#define LONG_TURN_LED 13
+
 // Defining the struct to read the current state of the switches in
 struct SwitchState {
   boolean turnleft;
@@ -28,6 +30,15 @@ struct SwitchState {
 };
 SwitchState switches = (SwitchState) { false, false, false, false, false, false, false };
 
+struct SerialCommand {
+  boolean listening;
+  int atStep;         // 0 = dir, 1 = angle, 2 = time, 3 = invalid, waiting for /r and/or /n to reset
+  boolean right;      // CW = true, CCW = false
+  int angle;
+  int seconds;  
+};
+SerialCommand serialCommand = (SerialCommand) { true, 0, false, 0, 0 };
+
 // Defining the timers used in the program
 struct Timer {
   unsigned long last;
@@ -40,6 +51,7 @@ int pulsePin = LOW;
 int outputCtr = 0;
 
 struct TurnState {
+  boolean turnlongbyserial;
   boolean turnlong;
   boolean left;
   boolean right;
@@ -49,7 +61,7 @@ struct TurnState {
   float thdbleft;
   float thdbright;
 };
-TurnState turnstate = (TurnState) { false, false, false, 0.0, 0.0, 0.0, 0.0, 0.0 };
+TurnState turnstate = (TurnState) { false, false, false, false, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
 #include <Wire.h>
 #include <FastIO.h>
@@ -74,10 +86,13 @@ void setup() {
   
   pinMode(OUT_CW, OUTPUT);
   pinMode(OUT_PULSE, OUTPUT);
+  pinMode(LONG_TURN_LED, OUTPUT);
   
   timer[0] = { micros(), 8000, true };
-  timer[1] = { millis(), 100, false };
-  timer[2] = { millis(), 160, false };
+  timer[1] = { millis(), 103, false };
+  timer[2] = { millis(), 163, false };
+  timer[3] = { millis(), 80, false };
+  timer[4] = { millis(), 80, false };
   
   Serial.begin(38400);
   
@@ -93,17 +108,73 @@ void setup() {
 }
 
 void loop() {
-  if (checkTimer(0)) {
-    if (turnstate.left || turnstate.right || pulsePin == HIGH){
-      pulse();
+  if (checkTimer(0) && (turnstate.left || turnstate.right || pulsePin == HIGH)) pulse();
+  if (checkTimer(1)) refreshInput();
+  if (checkTimer(2)) output();
+  if (checkTimer(3)) checkSerialInput();
+  if (checkTimer(4)) writeLongTurnLed();
+}
+
+void checkSerialInput() {
+  while (Serial.available() > 0 && serialCommand.listening) {
+    const char c = Serial.read();
+
+    // Process potential end of command
+    if ((c == '\r' || c == '\n')) {
+      if (serialCommand.atStep == 2 && serialCommand.seconds > 0) executeSerialCommand();
+      serialCommand.atStep = 0;
+      serialCommand.right = false;
+      serialCommand.angle = 0;
+      serialCommand.seconds = 0;
+      continue;
     }
+
+    if (serialCommand.atStep == 0) {
+      if (c == 'L' || c == 'R') {
+        serialCommand.right = c == 'R';
+        continue;
+      } else if (c == ' ') {
+        serialCommand.atStep++;
+        continue;
+      }
+    }
+
+    if (serialCommand.atStep == 1) {
+      if (atoi(&c) != 0 || c == '0') {
+        serialCommand.angle *= 10;
+        serialCommand.angle += atoi(&c);
+        continue;
+      } else if (c == ' ') {
+        serialCommand.atStep++;
+        continue;
+      }
+    }
+
+    if (serialCommand.atStep == 2) {
+      if (atoi(&c) != 0 || c == '0') {
+        serialCommand.seconds *= 10;
+        serialCommand.seconds += atoi(&c);
+        continue;
+      }
+    }
+
+    serialCommand.atStep = 3;
   }
-  if (checkTimer(1)) {
-    refreshInput();
-  }
-  if (checkTimer(2)) {
-    output();
-  }
+}
+
+void executeSerialCommand() {
+  Serial.println("ACK");
+  turnstate.left = !serialCommand.right;
+  turnstate.right = serialCommand.right;
+  setDirection(turnstate.right);
+  turnstate.turnlong = true;
+  turnstate.target = turnstate.angle + (serialCommand.right ? serialCommand.angle : -1 * serialCommand.angle);
+  timer[0].interval = (serialCommand.seconds / (abs(turnstate.target - turnstate.angle) * 10)) * 100000 * 5;
+  turnstate.turnlongbyserial = true;
+}
+
+void writeLongTurnLed() {
+  digitalWrite(LONG_TURN_LED, turnstate.turnlong ? HIGH : LOW);
 }
 
 void refreshInput() {
@@ -118,6 +189,7 @@ void refreshInput() {
   switches.speed_high   = digitalRead(SW_SPD_HIGH) == HIGH;
   if (turnstate.turnlong) {
     if (switches.kill) {
+      turnstate.turnlongbyserial = false;
       turnstate.turnlong = false;
       turnstate.left = false;
       turnstate.right = false;
@@ -158,12 +230,14 @@ void refreshInput() {
     }
     setDirection(turnstate.right);
   }
-  if (switches.speed_low) {
-    timer[0].interval = 25000;
-  } else if (switches.speed_high) {
-    timer[0].interval = 3000;
-  } else {
-    timer[0].interval = 8000;
+  if (!turnstate.turnlongbyserial) {
+    if (switches.speed_low) {
+      timer[0].interval = 25000;
+    } else if (switches.speed_high) {
+      timer[0].interval = 3000;
+    } else {
+      timer[0].interval = 8000;
+    }
   }
 }
 
@@ -179,6 +253,7 @@ void pulse() {
     if (turnstate.turnlong) {
       if (aboutEquals(turnstate.angle, turnstate.target, 0.1)) {
         turnstate.turnlong = false;
+        turnstate.turnlongbyserial = false;
         turnstate.left = false;
         turnstate.right = false;
       }
@@ -187,6 +262,7 @@ void pulse() {
 }
 
 void setDirection(bool right) {
+  right = !right;
   if (right) {
     digitalWrite(OUT_CW, HIGH);
   } else {
